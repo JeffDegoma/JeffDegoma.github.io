@@ -82,6 +82,7 @@ header h1 {
     padding: 0 5%;
     height: 3em;
 }
+
 .main-content {
     height: 100%;
     border-left: 1px solid #8c99a3;
@@ -207,6 +208,11 @@ i.large.icon, i.large.icons {
 
 .social-links li a:hover {
     text-decoration: underline;
+    color: #0b1b29;
+}
+
+a[href^="mailto:"]
+{ 
     color: #0b1b29;
 }
 
