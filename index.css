@@ -95,12 +95,10 @@ header h1 {
 
 .about-container {
     margin: auto;
-    padding: 10px;
+    max-width: 95%;
 }
 
-.about-wrap {
-    padding-left: 10px;
-}
+
 
 .hero-message {
     padding: 10px;
