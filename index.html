@@ -1,13 +1,13 @@
  <!DOCTYPE html>
 <html>
 <head>
-    <title>Jeff Degoma</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.13/components/button.css" rel="stylesheet" type="text/css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.13/components/icon.min.css" rel="stylesheet" type="text/css">
-    <link href="https://fonts.googleapis.com/css?family=Montserrat:300‌​,700" rel="stylesheet"></link>
-    <link href="https://fonts.googleapis.com/css?family=Fanwood+Text" rel="stylesheet">
+    <title>Jeff Degoma | Web Developer</title>
     <link rel="stylesheet" type="text/css" href="index.css">
-    <meta name="viewport" content="width=device-width initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.13/components/icon.min.css" rel="stylesheet" type="text/css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.13/components/button.css" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Lora" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Fanwood+Text" rel="stylesheet">
     <link rel="shortcut icon" href="images/favicon.ico" type="image/icon">
 </head>
 
@@ -17,21 +17,41 @@
                     
         <div class="content-container">
             <div class="nav-content">
-               <ul class="nav-list">
-                    <h2 class="Logo"><a id="about">Jeff Degoma</a></h2>
-                    <a id="projects-link"><li>Projects</li></a>
-                    <a id="contact-link"><li>Contact</li></a>
-                    </ul>
-               </ul> 
+                   <ul class="nav-list">
+                        <h3 class="Logo"><a id="hero">Jeffrey Degoma</a></h3>
+                        <li><a id="about-link">About</a></li>
+                        <li><a id="projects-link">Projects</a></li>
+                        <li><a id="contact-link">Contact</a></li>
+                   </ul> 
             </div>
 
         <div class="main-content">
+            <div class="hero-container">
+                <div class="hero-wrap">
+                    <header>
+                        <h2 class="hero-description">Web Developer.</h2>
+                    </header>
+                    <p class="hero-message">Hello, my name is Jeffrey. I am a front-end web developer based in the Washington Metropolitan Area.<br> With a penchant for writing clean and concise code, I create custom web applications and thrive on finding solutions on client and server-side environments.</p>
+                </div>
+            </div>
+
             <div class="about-container">
                 <div class="about-wrap">
-                    <header>
-                        <h1>Fullstack Web Developer.</h1>
-                    </header>
-                    <p class="hero-message">Hello, my name is Jeff. I am a full-stack developer based in the Washington Metropolitan Area. With a penchant for writing clean and concise code, I thrive on finding solutions on front-end and client-side environments.</p>
+                        <div class="henry-header">
+                            <div>
+                                <img    src="./images/profile.jpg" 
+                                        alt="profile-image"
+                                        class="profile-image">
+                            </div>
+                            <p class="about-message"><span class="dropcap">J</span>effrey is a freelancer and front-end web developer. To his recollection, there was hardly ever a time when he <i>wasn't</i> interested in breaking stuff apart and putting it back together. While Jeffrey hadn't considered a career in tech growing up, he spent the first decades of his life training for it. From thousand piece puzzles to complicated Cuban salsa turn patterns, this habit of dismantling and rebuilding eventually led him to a path in web development. Along with his editor(sublime text), as his quintessential etch-a-sketch, Jeffrey is committed to building meaningful web applications.
+                            </p>
+                        </div>
+
+                    <span style="text-decoration: underline;text-underline-position: under;">What I'm up to right now:</span>
+                    <p style="margin-top: 7px;">I favor the one-two punch of React and Node albeit currently I'm building a custom wordpress theme, gaining traction on PHP and content management systems. 
+                    </p>
+                
+                    <span><i>Fancy a chat? Cup of coffee? Game of chess? I'm motivated by learning from others and share the collective goal in making a social impact through tech. Drop me a line at: </i><a href="mailto:jeffrey.hill.degoma@gmail.com" class="dropMeALine"><strong>jeffrey.hill.degoma@gmail.com</strong></a></span>
                 </div>
             </div>
 
@@ -56,11 +76,13 @@
                     </div>
                     
                     <div class="description-container">
-                        <h3 class="project-title">Boundless Beats</h3>
+                        <a target="blank" href="https://github.com/JeffDegoma/Boundless-Beats">
+                            <h3 class="project-title">Boundless Beats</h3>
+                        </a>
                         <p>Retrieves song recommendations based off an artist that you like. This app makes use of TasteKid and the Spotify API to generate a collection of related artists.</p>
 
                         <div class="button-container">
-                            <a target="blank" href="https://github.com/JeffDegoma/Boundless-Beats">
+                            <a target="blank" href="https://serene-beyond-89222.herokuapp.com">
                             <div class="ui animated fade button basic grey" tabindex="0">
                               <div class="visible content">
                                 <i class="github icon"></i>
@@ -105,7 +127,9 @@
                 </div>
 
                     <div class="description-container">
-                        <h3 class="project-title">Awareness</h3>
+                        <a target="_blank" href="http://awareness-capstone.herokuapp.com">
+                            <h3 class="project-title">Awareness</h3>
+                        </a>
                         <p> Responsive app built in an effort to keep track of milestones and important events.</p>
                         
                         <div class="button-container">
@@ -157,7 +181,9 @@
                     </figcaption>
                     </div>
                     <div class="description-container">
-                        <h3 class="project-title">Buzzer</h3>
+                        <a target="blank" href="https://arcane-plains-94751.herokuapp.com">
+                            <h3 class="project-title">Buzzer</h3>
+                        </a>
                         <p>Buzzer keeps you updated on trending tweets of the NBA. Made with React and Redux, the user is able to favorite tweets</p>
 
                         <div class="button-container">
@@ -187,7 +213,8 @@
 
             <div class="contact-container">
                 <div class="contact-wrap">
-                    <p class="header-subheader">I'm currently accepting new projects and would love to hear about yours. Please take a few minutes to tell me about it.</p>
+                <h2 class="contact-hero">Let's get in touch.</h2>
+                    <span>I'm currently accepting new projects and would love to hear about yours.<br>There are lots of ways we can connect:
                     <ul class="social-links">
                         <li>
                             <a target="_blank" href="https://github.com/JeffDegoma"><i class="large github icon"></i></a>
@@ -201,13 +228,22 @@
                         <li>
                             <a href="mailto:jeffrey.hill.degoma@gmail.com"><i class="large mail icon"></i></a>
                         </li>
+                    </ul>  
+                    </span> - but I'm partial to a good ol' fashioned email.
+                </div>
+                <div class="contact-specs">Please include:
+                    <ul>
+                        <li>A description of your company, service, or product.</li>
+                        <li>An overview of what you'd like to make together.</li>
+                        <li>Information about your ideal timeline to complete the work.</li>
                     </ul>
                 </div>
+                <br>
             </div>
         </div>
     
     </div>
-        <footer class="footer"><p class="footer-text">&copy; 2017 Jeff Degoma</p></footer>
+        <footer class="footer"><p class="footer-text"></p></footer>
     </div>
 
 </body>

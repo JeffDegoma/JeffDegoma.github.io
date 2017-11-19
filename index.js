@@ -2,28 +2,52 @@ $( document ).ready(() => {
 
     (function(){
         $('.contact-container').hide()
+        $('.about-container').hide()
         $('.project-container').hide()
     })()
 
-
+    const date = new Date()
+    const year = date.getFullYear();
+    const $mainContent = $('.main-content')
 
     const showProjects = () => {
-        $('.main-content').children().hide()
+        $mainContent.children().hide()
         $('.project-container').fadeIn()
     }
 
+    const showIntro = () => {
+        $mainContent.children().hide()
+        $('#hero').parent().siblings().removeAttr('style')
+        $('.hero-container').fadeIn()
+    }
+
     const showAbout = () => {
-        $('.main-content').children().hide()
+        $mainContent.children().hide()
         $('.about-container').fadeIn()
     }
 
     const showContact = () => {
-        $('.main-content').children().hide()
+        $mainContent.children().hide()
         $('.contact-container').fadeIn()
     }
 
-    $('#about').click(() => {
-        showAbout()
+    $('.footer-text').html(`&copy; ${year} Jeffrey Degoma`)
+
+/*******************************************/
+            /*Handlers*/
+/*******************************************/
+
+    $('.nav-list').on('click', 'li', function(){
+        $(this).css('color', 'red')
+        $(this).siblings().removeAttr('style')
+    })
+
+    $('#hero').click(() => {
+        showIntro()
+    })
+
+     $('#about-link').click(() => {
+        showAbout();
     })
 
     $('#projects-link').click(() => {
@@ -34,5 +58,6 @@ $( document ).ready(() => {
         showContact()
     })
 
-
 })
+
+
