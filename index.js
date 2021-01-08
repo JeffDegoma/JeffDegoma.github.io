@@ -3,7 +3,8 @@ const handle = () => {
 }
 // setTimeout(handle,2000)
 $( window ).on('load',() => {
-    $('#cover').fadeOut(2000);
+    $('#cover').fadeOut(1000);
+
 
     (function(){
 
@@ -34,6 +35,7 @@ $( window ).on('load',() => {
     const showAbout = () => {
         $mainContent.children().hide()
         $('.about-container').fadeIn()
+        //<span class="dropcap">J</span>
     }
 
     const showContact = () => {
