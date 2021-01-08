@@ -35,7 +35,7 @@ $( window ).on('load',() => {
     const showAbout = () => {
         $mainContent.children().hide()
         $('.about-container').fadeIn()
-        //<span class="dropcap">J</span>
+        $('.about-message span').addClass("dropcap")
     }
 
     const showContact = () => {
