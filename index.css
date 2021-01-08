@@ -21,10 +21,18 @@ header h1 {
     padding: 10px;
 }
 
+
 .app-container{
     height: 100%;
     background-color: #f7f7f7;
     line-height: 1.65;
+}
+
+#cover {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    background: #454545
 }
 
 .content-container {
@@ -200,9 +208,7 @@ header h1 {
     max-width: 95%;
 }
 
-.hero-description {
-    
-}
+
 
 .hero-wrap {
     padding: 20px;
@@ -262,9 +268,6 @@ html,
     display: flex;
     padding: 20px;
     margin: auto;
-}
-
-.contact-hero {
 }
 
 .contact-specs {
