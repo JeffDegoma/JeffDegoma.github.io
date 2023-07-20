@@ -1,0 +1,89 @@
+---
+layout: post
+title:  "ECS-EXEC"
+date:   2023-07-19 07:40:59 -0100
+tags: jekyll update
+layout: default
+---
+
+
+
+
+# Terraform ECS exec  
+
+Migrating away from container host instances can be seem daunting. From a server management standpoint, we cling to our bastion hosts to have more control over our boxes. An analogy comes to mind. And stop me if you’ve heard this one: You have a set of keys to open one door and on the other side of that door is … another locked door. Yes we can use ssh-agent to forward our keys, but why deal with private and public keys at all? Now with ecs-exec, gone are the days of managing jump boxes. Similar to “docker exec” you can access an ECS Fargate container in a private subnet from the comfort of your local environment. Here’s how.
+
+&nbsp;  
+
+
+The official AWS ECS terraform module abstracts the setup of IAM roles and policies needed to ecs-exec into fargate containers. You’ll only need to provide the AWS managed policy and reference that into the built-in inputs of the module. The service module also defines the ecs task definition and ecs service in one resource block. Pretty neat.
+
+&nbsp;  
+
+
+These are the IAM policies needed: `arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore`
+
+&nbsp;  
+
+For this example we will be spinning up:
+
+- a vpc with private subnets to place our fargate containers
+- a task definition and service for a node.js docker application 
+
+&nbsp;
+
+## Task Definition and Service
+
+    module "ecs_staging_server_service" {
+        source  = "terraform-aws-modules/ecs/aws//modules/service"
+        version = "5.2.0"
+        name        = "staging_service"
+        cluster_arn = module.ecs_cluster.cluster_arn
+        requires_compatibilities = ["FARGATE"]
+        launch_type = "FARGATE"
+        enable_execute_command = true
+        tasks_iam_role_policies = var.arn
+        
+        container_definitions = {
+        (local.staging_container_name) = {
+            image = node:lts-alpine
+            port_mappings = [
+            {
+                name          = local.staging_container_name
+                containerPort = local.staging_container_port
+            }
+            ]
+            readonly_root_filesystem = false
+        }
+        }
+
+        load_balancer = {
+            service = {
+            target_group_arn = element(module.alb.target_group_arns, 0)
+            container_name   = local.staging_container_name
+            container_port   = local.staging_container_port
+            }
+        }
+
+        subnet_ids = module.vpc.private_subnets
+    
+        security_group_rules = {
+            alb_http_ingress = { # point to security group of alb
+                type                     = "ingress"
+                protocol                 = "tcp"
+                description              = "Service port"
+                from_port                = local.staging_container_port
+                to_port                  = local.staging_container_port
+                source_security_group_id = module.alb_sg.security_group_id
+            }
+            egress_all = {
+                type        = "egress"
+                from_port   = 443
+                to_port     = 443
+                protocol    = "-1"
+                cidr_blocks = ["0.0.0.0/0"]
+            }
+        }
+    }
+
+
