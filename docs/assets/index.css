@@ -136,6 +136,9 @@ header h1 {
     text-decoration: underline;
     text-underline-position: under;
 }
+a:visited {
+    color: #2e2e2e;
+}
 
 
 /*******************************************/
