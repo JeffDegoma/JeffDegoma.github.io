@@ -184,174 +184,174 @@ module "alb" {
 ```
 
 
-
-Alright before we go any further we should grab the load balancer dns name. From your terminal 
-
-The ECS Task Definition and Service. Alrighty, let’s break this down.
-
-We mount two volumes coming from our ECS instance to our drone containers: the docker daemon and a data volume to save drone configs in sql
-The drone server and drone runner containers requires environment variables to be set for the app to run. In the vars.tf file I’ve specified a map of values. As an aside we can load these variables into SSM and then read the variables by calling data
+&nbsp;
 
 
-variable "envs" {
-  type = map
-  default = {
-    "DRONE_SERVER_HOST" = "http://ex-ecs-instance-1524533810.us-east-1.elb.amazonaws.com"
-    "DRONE_DATABASE_DATASOURCE" = "/data/database.sqlite"
-    "DRONE_DATABASE_DRIVER" = "sqlite3"
-    "DRONE_GITHUB_CLIENT_ID" = "b7f97c4749b63ad0edc0"
-    "DRONE_GITHUB_CLIENT_SECRET" = "b780221c227c3c18d00c8af51dbb56bda0b3661d"
-    "DRONE_RPC_PROTO" = "http"
-    "DRONE_SERVER_PROTO" = "http"
-    "DRONE_RPC_HOST" = "localhost:80" #"drone-server.local:80"
-    "DRONE_RPC_SECRET" = "b780221c227c3c18d00c8af51dbb56bda0b3661d"
-    "DRONE_USER_CREATE" = "username:JeffDegoma,machine:false,admin:true,token:b780221c227c3c18d00c8af51dbb56bda0b3661d"
-    "DRONE_TLS_AUTOCERT" = "false"
-    }
-}
+## The ECS Task Definition and Service
+
+We mount two volumes coming from our ECS instance to our drone containers: the docker daemon and a data volume to save drone configs in sql. The drone server and drone runner containers requires environment variables to be set for the app to run. In the vars.tf file I’ve specified a map of values. As an aside we can load these variables into SSM and then read the variables by calling data
+
+&nbsp;
 
 
-module "ecs_drone_server_service" {
-    source  = "terraform-aws-modules/ecs/aws//modules/service"
-    version = "5.0.1"								
-    name        = "app-service"								
-    cluster_arn = module.ecs_cluster.cluster_arn  					
-    enable_execute_command = true										
-    tasks_iam_role_policies = var.arn								
-    requires_compatibilities = ["EC2"]						
-    capacity_provider_strategy = {							
-        ex-1 = {										
-            capacity_provider = module.ecs_cluster.autoscaling_capacity_providers["ex-1"].name
-            weight            = 1											
-            base              = 1									
-        }														
-    }								
-     volume = [									
-      {											
-        name = "my-vol",
-        host_path = "/var/run/docker.sock"
-      },								
-       {										
-        name = "data",									
-        host_path = "/var/data"						
-      }										
-    ]									
-    											
-    container_definitions = {
-      (local.server_container_name) = {
-        image =  "drone/drone"#"public.ecr.aws/ecs-sample-image/amazon-ecs-sample:latest" 
-        port_mappings = [
-            {										
-            name          = local.server_container_name
-            containerPort = local.server_container_port
-            protocol      = "tcp"	
-            }					
-        ]						
+```
+  variable "envs" {
+    type = map
+    default = {
+      "DRONE_SERVER_HOST" = "http://ex-ecs-instance-1524533810.us-east-1.elb.amazonaws.com"
+      "DRONE_DATABASE_DATASOURCE" = "/data/database.sqlite"
+      "DRONE_DATABASE_DRIVER" = "sqlite3"
+      "DRONE_GITHUB_CLIENT_ID" = 
+      "DRONE_GITHUB_CLIENT_SECRET" = 
+      "DRONE_RPC_PROTO" = "http"
+      "DRONE_SERVER_PROTO" = "http"
+      "DRONE_RPC_HOST" = "localhost:80" #"drone-server.local:80"
+      "DRONE_RPC_SECRET" = 
+      "DRONE_TLS_AUTOCERT" = "false"
+      }
+  }
+
+
+  module "ecs_drone_server_service" {
+      source  = "terraform-aws-modules/ecs/aws//modules/service"
+      version = "5.0.1"								
+      name        = "app-service"								
+      cluster_arn = module.ecs_cluster.cluster_arn  					
+      enable_execute_command = true										
+      tasks_iam_role_policies = var.arn								
+      requires_compatibilities = ["EC2"]						
+      capacity_provider_strategy = {							
+          ex-1 = {										
+              capacity_provider = module.ecs_cluster.autoscaling_capacity_providers["ex-1"].name
+              weight            = 1											
+              base              = 1									
+          }														
+      }								
+      volume = [									
+        {											
+          name = "my-vol",
+          host_path = "/var/run/docker.sock"
+        },								
+        {										
+          name = "data",									
+          host_path = "/var/data"						
+        }										
+      ]									
+                            
+      container_definitions = {
+        (local.server_container_name) = {
+          image =  "drone/drone"
+          port_mappings = [
+              {										
+              name          = local.server_container_name
+              containerPort = local.server_container_port
+              protocol      = "tcp"	
+              }					
+          ]						
+          environment = [
+              {
+                  name  = "DRONE_SERVER_HOST"
+                  value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_SERVER_HOST"].value)
+              },
+              {
+                  name  = "DRONE_DATABASE_DATASOURCE"
+                  value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_DATABASE_DATASOURCE"].value)
+              },
+              {
+                  name  = "DRONE_SERVER_PROTO"
+                  value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_SERVER_PROTO"].value)
+              },
+              {
+                  name  = "DRONE_DATABASE_DRIVER"
+                  value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_DATABASE_DRIVER"].value)
+              },
+              {
+                  name  = "DRONE_USER_CREATE"
+                  value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_USER_CREATE"].value)
+              },
+              {
+                  name  = "DRONE_GITHUB_CLIENT_ID"
+                  value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_GITHUB_CLIENT_ID"].value) 
+              },
+              {
+                name  = "DRONE_GITHUB_CLIENT_SECRET"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_GITHUB_CLIENT_SECRET"].value) 
+              },
+              {
+                name  = "DRONE_RPC_SECRET"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_SECRET"].value) 
+              },
+              {
+                name  = "DRONE_TLS_AUTOCERT"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_TLS_AUTOCERT"].value) 
+              }
+          ]
+        mount_points = [
+          {							
+            sourceVolume  = "my-vol",
+            containerPath = "/var/run/docker.sock"
+          },					
+          {						
+            sourceVolume  = "data",
+            containerPath = "/data"
+          }
+        ]																		
+          
+          readonly_root_filesystem = false
+        }	
+
+                  
+      (local.container_name) = {
+        image =  "drone/drone-runner-docker"
+        port_mappings = [						
+          {								
+            name          = local.container_name
+            containerPort = local.container_port
+            protocol      = "tcp"		
+          }									
+        ]										
         environment = [
-            {
-                name  = "DRONE_SERVER_HOST"
-                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_SERVER_HOST"].value)
-            },
-            {
-                name  = "DRONE_DATABASE_DATASOURCE"
-                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_DATABASE_DATASOURCE"].value)
-            },
-            {
-                name  = "DRONE_SERVER_PROTO"
-                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_SERVER_PROTO"].value)
-            },
-            {
-                name  = "DRONE_DATABASE_DRIVER"
-                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_DATABASE_DRIVER"].value)
-            },
-            {
-                name  = "DRONE_USER_CREATE"
-                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_USER_CREATE"].value)
-            },
-            {
-                name  = "DRONE_GITHUB_CLIENT_ID"
-                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_GITHUB_CLIENT_ID"].value) 
-            },
-            {
-              name  = "DRONE_GITHUB_CLIENT_SECRET"
-              value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_GITHUB_CLIENT_SECRET"].value) 
-            },
-            {
-              name  = "DRONE_RPC_SECRET"
-              value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_SECRET"].value) 
-            },
-            {
-              name  = "DRONE_TLS_AUTOCERT"
-              value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_TLS_AUTOCERT"].value) 
-            }
+          {								
+              name  = "DRONE_RPC_PROTO"
+              value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_PROTO"].value)
+          },
+          {									
+            name  = "DRONE_RPC_SECRET"
+            value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_SECRET"].value) 
+          },
+          {
+            name  = "DRONE_RPC_HOST"
+            value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_HOST"].value) 
+          }
+        ]							
+        mount_points = [
+          {									
+            sourceVolume  = "my-vol",
+            containerPath = "/var/run/docker.sock"
+          }
         ]
-      mount_points = [
-        {							
-          sourceVolume  = "my-vol",
-          containerPath = "/var/run/docker.sock"
-        },					
-         {						
-          sourceVolume  = "data",
-          containerPath = "/data"
-        }
-      ]																		
-         # Requires access to write to root filesystem. read only will run into nginx docker image issue
+        
         readonly_root_filesystem = false
-      }	
-
-								
-    (local.container_name) = {
-      image =  "drone/drone-runner-docker"
-      port_mappings = [						
-        {								
-          name          = local.container_name
-          containerPort = local.container_port
-          protocol      = "tcp"		
-        }									
-      ]										
-      environment = [
-        {								
-            name  = "DRONE_RPC_PROTO"
-            value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_PROTO"].value)
-        },
-        {									
-          name  = "DRONE_RPC_SECRET"
-          value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_SECRET"].value) 
-        },
-        {
-          name  = "DRONE_RPC_HOST"
-          value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_HOST"].value) 
-        }
-      ]							
-      mount_points = [
-        {									
-          sourceVolume  = "my-vol",
-          containerPath = "/var/run/docker.sock"
-        }
-      ]
-      # Example image used requires access to write to root filesystem
-      readonly_root_filesystem = false
-    }															
-  }													
-      load_balancer = {
-        service = {
-          target_group_arn = element(module.alb.target_group_arns, 0)
-          container_name   = local.server_container_name
-          container_port   = local.server_container_port
-        }												
-    }												
-    subnet_ids = module.vpc.private_subnets				
-    											
-    security_group_rules = {										
-      alb_http_ingress = { # point to security group of alb
-        type                     = "ingress"
-        from_port                = local.server_container_port
-        to_port                  = local.server_container_port
-        protocol                 = "tcp"
-        description              = "Service port"
-        source_security_group_id = module.alb_sg.security_group_id
-      }											
-    }										
-}
-
-
+      }															
+    }													
+        load_balancer = {
+          service = {
+            target_group_arn = element(module.alb.target_group_arns, 0)
+            container_name   = local.server_container_name
+            container_port   = local.server_container_port
+          }												
+      }												
+      subnet_ids = module.vpc.private_subnets				
+                            
+      security_group_rules = {										
+        alb_http_ingress = { # point to security group of alb
+          type                     = "ingress"
+          from_port                = local.server_container_port
+          to_port                  = local.server_container_port
+          protocol                 = "tcp"
+          description              = "Service port"
+          source_security_group_id = module.alb_sg.security_group_id
+        }											
+      }										
+  }
+```
