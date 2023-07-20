@@ -1,0 +1,104 @@
+---
+layout: post
+title:  "Quick ECS"
+date:   2023-07-19 07:40:59 -0100
+tags: ecs
+layout: default
+---
+
+
+# Quick Terraform - Let's create an ECS Cluster
+
+These days most every piece of software can be turned into a container. This is an example to build out an AWS ECS cluster by installing terraform inside an aws-cli docker image. I've found this method to be pretty handy when I'm testing out infrastructure locally as whatever terraform state that gets saved can be brought down just as quick.
+
+&nbsp;  
+
+
+## Init.sh
+
+A bash script to install terraform. This becomes the primary entrypoint of our aws-cli image.
+
+&nbsp;  
+
+    #/bin/bash
+    #install dependencies and terraform INSIDE an awscli docker container
+
+    #Tools
+    yum install -y jq gzip nano tar yum-utils shadow-utils
+
+    #Terraform
+    yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+    yum -y install terraform
+  
+    echo "Terraform is running"
+
+    tail -f /dev/null #keeps container running
+
+&nbsp;  
+
+## Docker Compose
+
+Here is a docker compose file to build the aws-cli docker image. We will mount the init.sh script that will install terraform and other helpful programs to quickly authenticate with AWS and create a throwaway infra setup. The `amazon/aws-cli:2.0.43` docker image has a default entrypoint of "`aws configure`" but we override that with `/bin/bash`. We also export our existing AWS credentials so our newly installed terraform-in-a-box will know to read the credentials once it's installed.  A `docker-compose up --build` should do the trick. Because we're installing a fresh version of terraform, this will take a few moments. Once we see that "Terraform is running" and that a new workspace has been created, we can open another terminal window and `docker exec` into the container.
+
+&nbsp;  
+
+
+    ## docker-compose.yml
+
+        version: '3.7'
+        services:
+        terraform:
+            image: amazon/aws-cli:2.0.43
+            working_dir: /work
+            user: 0:0
+            container_name: ecs_terraform_container
+            volumes:
+            - ./init.sh:/usr/local/bin/init.sh
+            - ./terraform:/work
+            entrypoint: /bin/bash #override aws-cli entrypoint
+            environment:
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+            command:
+            -  init.sh
+
+## Terraform
+Once inside the container, we should see our mounted terraform files. A terraform workspace has also been created and we're already switched to it. We can see this by running:  
+`terraform workspace list` 
+
+&nbsp;  
+
+## ECS Cluster
+Simple ecs_cluster setup. The official module from AWS will create a fargate cluster by default. We must define fargate capacity providers whether fargate and/or fargate spot.
+
+    module "ecs_cluster" {
+        source          = "terraform-aws-modules/ecs/aws"
+        cluster_name    =  local.name
+        version         = "5.0.1"
+
+
+        cluster_configuration = {
+            execute_command_configuration = {
+                logging = "OVERRIDE"
+                log_configuration = {
+                    cloud_watch_log_group_name = "/aws/ecs/aws-ec2"
+                }
+            }
+        }
+
+        fargate_capacity_providers = {
+            FARGATE = {
+                default_capacity_provider_strategy = {
+                weight = 50
+                base   = 20
+                }
+            }
+
+            FARGATE_SPOT = {
+                default_capacity_provider_strategy = {
+                    weight = 50
+                }
+            }
+        }
+    }

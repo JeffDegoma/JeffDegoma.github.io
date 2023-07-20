@@ -1,0 +1,355 @@
+---
+layout: default
+title:  "Drone CI!"
+date:   2023-07-18 07:40:59 -0100
+tags: jekyll update
+is_post: true
+future: true
+---
+
+# DroneCI on ECS Instance
+While tinkering around with AWS’ Elastic Container Service, I wanted to apply a real-ish world scenario in deploying a docker container application with a side-car container. DroneCI was the perfect candidate as Drone itself is packaged as a docker container and needs a “runner” side-car container. This post also covers how to mount the docker daemon from the ECS host machine to our drone containers which, AFAIK, can only be achieved through ECS Instance, NOT Fargate. Strap on, grab a coffee and lets go!
+
+&nbsp;  
+
+NB: I used the official AWS Terraform modules for ECS and supported resources- you know, for fun :)  
+&nbsp;
+
+## The Network
+Here we spin up 2 private subnets where our ECS instances will reside. The `enable_dns_hostnames` and `enable_dns_support` booleans can be optionally defined here if we want to use service connect or service discovery. For the purposes of this tutorial, we will use 1 task definition to define two containers, the drone server and the drone runner. They should be able to communicate through localhost.
+
+&nbsp;
+
+```
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 5.0"
+  name = local.name
+  cidr = local.vpc_cidr
+  azs             = ["us-east-1a", "us-east-1b"] //more azs
+  public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+  private_subnets = ["10.0.3.0/24", "10.0.4.0/24"]
+  create_igw      = true
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+  enable_nat_gateway = true
+  single_nat_gateway = true
+  tags = local.tags					
+}
+```
+&nbsp;
+
+&nbsp;
+
+## The ECS Cluster
+Because we’re not using Fargate, we have to manage our own ECS instances. Inside the cluster module we must define the `autoscaling_capacity_providers`. The launch configuration for our instances is referred in the AutoScaling module. Note that we explicitly set the `default_capacity_provider_user_fargate` to be false. This module builds the cluster as Fargate if we don’t specify.
+
+&nbsp;
+
+```
+module "ecs_cluster" {
+  source          = "terraform-aws-modules/ecs/aws"
+  cluster_name = local.name
+  # Capacity provider - autoscaling groups
+  default_capacity_provider_use_fargate = false
+  autoscaling_capacity_providers = {
+    # On-demand instances
+    one = {
+      auto_scaling_group_arn         = module.autoscaling["one"].autoscaling_group_arn
+      managed_termination_protection = "ENABLED"
+      managed_scaling = {
+        maximum_scaling_step_size = 3
+        minimum_scaling_step_size = 1
+        status                    = "ENABLED"
+        target_capacity           = 60
+      }						
+      default_capacity_provider_strategy = {
+        weight = 60
+        base   = 20
+      }					
+    }				
+    # Spot instances?	
+  }					
+  tags = local.tags
+}
+```
+&nbsp;
+
+## The AutoScaling Groups
+A little meatier but hey it means you can lump your launch configuration and autoscaling groups in the same block. We use some fancy terraform syntax to loop through our ECS instance configuration. 
+
+&nbsp;
+
+A few things to note:
+
+- we inject a bash script to start the ECS service in our ECS instances
+- we use the official Linux ECS AMI 
+- we define managed IAM roles so we have permissions on our ECS instances
+- our ecs instances will live in the private subnets
+- we define the autoscaling security groups of our ECS instances as well as an additional security group for a separate EC2 Instance that acts as a bastion host to access our ECS instances in the private subnet
+- finally, make sure to have the key_name defined here so we can ssh into our ECS instances to debug failed containers
+  -  `aws ec2 import-key-pair --key-name {your_desired_key_name_to_import_to_AWS} --public-key-material fileb://{existing_public_key}.pub`
+
+&nbsp;
+
+```
+module "autoscaling" {
+  source  = "terraform-aws-modules/autoscaling/aws"
+  version = "~> 6.5"
+  for_each = {													
+    # On-demand instances										
+    ex-1 = {													
+      instance_type              = "t3.medium"						
+      user_data                  = <<-EOT							
+        #!/bin/bash												
+        cat <<'EOF' >> /etc/ecs/ecs.config							
+        ECS_CLUSTER=${local.name}									
+        ECS_LOGLEVEL=debug										
+        ECS_CONTAINER_INSTANCE_TAGS=${jsonencode(local.tags)}			
+        ECS_ENABLE_TASK_IAM_ROLE=true								
+        EOF													
+      EOT														
+    }        													
+  }															
+  name = "${local.name}-${each.key}"								
+  image_id      = jsondecode(data.aws_ssm_parameter.ecs_optimized_ami.value)["image_id"]
+  instance_type = each.value.instance_type
+  security_groups                 = [module.autoscaling_sg.security_group_id, module.ec2_security_group.security_group_id]
+  user_data                       = base64encode(each.value.user_data)	
+  ignore_desired_capacity_changes = true																
+  create_iam_instance_profile = true														
+  iam_role_name               = local.name
+  iam_role_description        = "ECS role for ${local.name}"
+  iam_role_policies = {	
+    AmazonEC2ContainerServiceforEC2Role = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+    AmazonSSMManagedInstanceCore        = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  }	
+  vpc_zone_identifier = module.vpc.private_subnets
+  health_check_type   = "EC2"
+  min_size            = 1
+  max_size            = 3
+  desired_capacity    = 2
+  # https://github.com/hashicorp/terraform-provider-aws/issues/12582
+  autoscaling_group_tags = {
+    AmazonECSManaged = true
+  }													
+  # Required for  managed_termination_protection = "ENABLED"
+  protect_from_scale_in = true							
+  key_name               = "priv"
+
+}
+```
+&nbsp;
+
+## The Load Balancer
+Important! We need the drone server endpoint to be accessible on the internet. We also need to register Drone CI as a GitHub OAUTH app so it can access and build GitHub repositories. In a real world scenario, we can use a subdomain where we can access DroneCI internally behind a company VPN but for this tutorial a load balancer will suffice. We'll need to pass the load balancer name as an environment variable that needs to be set inside the drone server container. 
+
+&nbsp;
+
+Here we:
+- refer to our vpc module to place the loadbalancer in the public subnet because it is internet facing
+- refer to the alb security group module
+- create a target group to forward to requests from the alb to our drone server container
+
+&nbsp;
+
+```
+module "alb" {									
+  source  = "terraform-aws-modules/alb/aws"				
+  version = "~> 8.0"								
+  name = local.name							
+  load_balancer_type = "application"			
+  vpc_id          = module.vpc.vpc_id				
+  subnets         = module.vpc.public_subnets		
+  security_groups = [module.alb_sg.security_group_id]		
+  http_tcp_listeners = [						
+  {												
+    port               = 80						
+    protocol           = "HTTP"					
+    target_group_index = 0						
+  },										
+  ]											
+  target_groups = [							
+    {												
+      name             = "${local.server_container_name}”			
+      backend_protocol = "HTTP"							
+      backend_port     = local.server_container_port
+      target_type      = "ip"								
+    }											
+  ]												
+  tags = local.tags								
+}												
+```
+
+
+
+Alright before we go any further we should grab the load balancer dns name. From your terminal 
+
+The ECS Task Definition and Service. Alrighty, let’s break this down.
+
+We mount two volumes coming from our ECS instance to our drone containers: the docker daemon and a data volume to save drone configs in sql
+The drone server and drone runner containers requires environment variables to be set for the app to run. In the vars.tf file I’ve specified a map of values. As an aside we can load these variables into SSM and then read the variables by calling data
+
+
+variable "envs" {
+  type = map
+  default = {
+    "DRONE_SERVER_HOST" = "http://ex-ecs-instance-1524533810.us-east-1.elb.amazonaws.com"
+    "DRONE_DATABASE_DATASOURCE" = "/data/database.sqlite"
+    "DRONE_DATABASE_DRIVER" = "sqlite3"
+    "DRONE_GITHUB_CLIENT_ID" = "b7f97c4749b63ad0edc0"
+    "DRONE_GITHUB_CLIENT_SECRET" = "b780221c227c3c18d00c8af51dbb56bda0b3661d"
+    "DRONE_RPC_PROTO" = "http"
+    "DRONE_SERVER_PROTO" = "http"
+    "DRONE_RPC_HOST" = "localhost:80" #"drone-server.local:80"
+    "DRONE_RPC_SECRET" = "b780221c227c3c18d00c8af51dbb56bda0b3661d"
+    "DRONE_USER_CREATE" = "username:JeffDegoma,machine:false,admin:true,token:b780221c227c3c18d00c8af51dbb56bda0b3661d"
+    "DRONE_TLS_AUTOCERT" = "false"
+    }
+}
+
+
+module "ecs_drone_server_service" {
+    source  = "terraform-aws-modules/ecs/aws//modules/service"
+    version = "5.0.1"								
+    name        = "app-service"								
+    cluster_arn = module.ecs_cluster.cluster_arn  					
+    enable_execute_command = true										
+    tasks_iam_role_policies = var.arn								
+    requires_compatibilities = ["EC2"]						
+    capacity_provider_strategy = {							
+        ex-1 = {										
+            capacity_provider = module.ecs_cluster.autoscaling_capacity_providers["ex-1"].name
+            weight            = 1											
+            base              = 1									
+        }														
+    }								
+     volume = [									
+      {											
+        name = "my-vol",
+        host_path = "/var/run/docker.sock"
+      },								
+       {										
+        name = "data",									
+        host_path = "/var/data"						
+      }										
+    ]									
+    											
+    container_definitions = {
+      (local.server_container_name) = {
+        image =  "drone/drone"#"public.ecr.aws/ecs-sample-image/amazon-ecs-sample:latest" 
+        port_mappings = [
+            {										
+            name          = local.server_container_name
+            containerPort = local.server_container_port
+            protocol      = "tcp"	
+            }					
+        ]						
+        environment = [
+            {
+                name  = "DRONE_SERVER_HOST"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_SERVER_HOST"].value)
+            },
+            {
+                name  = "DRONE_DATABASE_DATASOURCE"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_DATABASE_DATASOURCE"].value)
+            },
+            {
+                name  = "DRONE_SERVER_PROTO"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_SERVER_PROTO"].value)
+            },
+            {
+                name  = "DRONE_DATABASE_DRIVER"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_DATABASE_DRIVER"].value)
+            },
+            {
+                name  = "DRONE_USER_CREATE"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_USER_CREATE"].value)
+            },
+            {
+                name  = "DRONE_GITHUB_CLIENT_ID"
+                value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_GITHUB_CLIENT_ID"].value) 
+            },
+            {
+              name  = "DRONE_GITHUB_CLIENT_SECRET"
+              value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_GITHUB_CLIENT_SECRET"].value) 
+            },
+            {
+              name  = "DRONE_RPC_SECRET"
+              value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_SECRET"].value) 
+            },
+            {
+              name  = "DRONE_TLS_AUTOCERT"
+              value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_TLS_AUTOCERT"].value) 
+            }
+        ]
+      mount_points = [
+        {							
+          sourceVolume  = "my-vol",
+          containerPath = "/var/run/docker.sock"
+        },					
+         {						
+          sourceVolume  = "data",
+          containerPath = "/data"
+        }
+      ]																		
+         # Requires access to write to root filesystem. read only will run into nginx docker image issue
+        readonly_root_filesystem = false
+      }	
+
+								
+    (local.container_name) = {
+      image =  "drone/drone-runner-docker"
+      port_mappings = [						
+        {								
+          name          = local.container_name
+          containerPort = local.container_port
+          protocol      = "tcp"		
+        }									
+      ]										
+      environment = [
+        {								
+            name  = "DRONE_RPC_PROTO"
+            value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_PROTO"].value)
+        },
+        {									
+          name  = "DRONE_RPC_SECRET"
+          value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_SECRET"].value) 
+        },
+        {
+          name  = "DRONE_RPC_HOST"
+          value = nonsensitive(data.aws_ssm_parameter.drone["DRONE_RPC_HOST"].value) 
+        }
+      ]							
+      mount_points = [
+        {									
+          sourceVolume  = "my-vol",
+          containerPath = "/var/run/docker.sock"
+        }
+      ]
+      # Example image used requires access to write to root filesystem
+      readonly_root_filesystem = false
+    }															
+  }													
+      load_balancer = {
+        service = {
+          target_group_arn = element(module.alb.target_group_arns, 0)
+          container_name   = local.server_container_name
+          container_port   = local.server_container_port
+        }												
+    }												
+    subnet_ids = module.vpc.private_subnets				
+    											
+    security_group_rules = {										
+      alb_http_ingress = { # point to security group of alb
+        type                     = "ingress"
+        from_port                = local.server_container_port
+        to_port                  = local.server_container_port
+        protocol                 = "tcp"
+        description              = "Service port"
+        source_security_group_id = module.alb_sg.security_group_id
+      }											
+    }										
+}
+
+
